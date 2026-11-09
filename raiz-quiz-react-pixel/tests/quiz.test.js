@@ -67,12 +67,18 @@ test('Só a alternativa marcada viola o teorema dos parênteses', () => {
 
 test('O gabarito topológico segue os tempos decrescentes e as dependências', () => {
   const q = questions.find(q => q.id === 14);
-  const finish = { Cueca: 6, Calça: 5, Cinto: 4, Meias: 10, Sapatos: 9 };
+  const finish = { 'Instalar dependências': 8, Compilar: 7, Testar: 6, Publicar: 5 };
+  const dependencies = [['Instalar dependências', 'Compilar'], ['Compilar', 'Testar'], ['Testar', 'Publicar']];
   const order = q.options[q.correct].split(' → ');
   assert.deepEqual(order, Object.keys(finish).sort((a, b) => finish[b] - finish[a]));
-  for (const [before, after] of [['Cueca', 'Calça'], ['Calça', 'Cinto'], ['Meias', 'Sapatos']]) {
+  for (const [before, after] of dependencies) {
     assert.ok(order.indexOf(before) < order.indexOf(after));
   }
+  q.options.forEach((option, index) => {
+    const steps = option.split(' → ');
+    const respectsDependencies = dependencies.every(([before, after]) => steps.indexOf(before) < steps.indexOf(after));
+    assert.equal(respectsDependencies, index === q.correct);
+  });
 });
 
 test('Pontuação distingue acertos, erros, vazios e índice zero', () => {

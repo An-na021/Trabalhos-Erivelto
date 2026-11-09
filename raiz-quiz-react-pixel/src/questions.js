@@ -108,10 +108,10 @@ export const questions = [
   },
   {
     id: 14, topic: 'Ordem inversa de finalização', sourceSlides: [12, 13],
-    title: 'Como formar a lista topológica ao finalizar os nós?',
-    prompt: 'As dependências são Cueca → Calça → Cinto e Meias → Sapatos. A DFS finalizou os vértices nesta sequência: Cinto, Calça, Cueca, Sapatos, Meias. Inserindo cada vértice no início da lista ao finalizar, qual será o resultado?',
-    options: ['Cinto → Calça → Cueca → Sapatos → Meias', 'Meias → Sapatos → Cueca → Calça → Cinto', 'Cueca → Cinto → Calça → Meias → Sapatos', 'Sapatos → Meias → Cueca → Calça → Cinto'], correct: 1,
-    explanation: 'Inserir cada finalizado no início produz a ordem inversa de término, equivalente aos tempos f decrescentes. O resultado respeita Cueca antes de Calça e Cinto, e Meias antes de Sapatos. Em um DAG, isso fornece uma ordem topológica.',
+    title: 'Como ordenar as etapas de um projeto?',
+    prompt: 'Um projeto define estas dependências: Instalar dependências → Compilar → Testar → Publicar. A DFS terminou os vértices na ordem Publicar, Testar, Compilar, Instalar dependências. Qual ordem topológica resulta ao inverter essa ordem de término?',
+    options: ['Publicar → Testar → Compilar → Instalar dependências', 'Instalar dependências → Compilar → Testar → Publicar', 'Instalar dependências → Publicar → Compilar → Testar', 'Compilar → Testar → Instalar dependências → Publicar'], correct: 1,
+    explanation: 'A ordem topológica coloca cada etapa antes das que dependem dela. Nesse projeto, é preciso instalar as dependências antes de compilar, compilar antes de testar e testar antes de publicar. Inverter a ordem de término da DFS produz exatamente essa sequência, pois o grafo é direcionado e acíclico.',
   },
   {
     id: 15, topic: 'Cuidados na implementação', sourceSlides: [5, 14],
