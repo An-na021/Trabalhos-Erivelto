@@ -130,7 +130,11 @@ export default function Competition({ Tree, Icon }) {
     try { await task(); } catch (err) { setError(err.message || 'Falha de conexão. Tente novamente.'); }
     finally { setBusy(false); }
   }
-  function enter(value) { appliedVersion.current = 0; setGame(null); setFatal(false); setSession(value); }
+  function enter(value) {
+    appliedVersion.current = 0; setGame(null); setFatal(false); setError(''); setConnected(false);
+    if (value.role === 'host') window.history.replaceState({}, '', location.pathname);
+    setSession(value);
+  }
   function leave() {
     if (game && !['lobby', 'finished'].includes(game.phase) && !window.confirm('Sair da tela da partida? A sala continuará e o tempo não será pausado.')) return;
     try { sessionStorage.removeItem(SESSION_KEY); } catch { /* No saved session. */ }
@@ -172,7 +176,7 @@ export default function Competition({ Tree, Icon }) {
             <button className="primary-button" disabled={busy || code.length !== 6 || name.trim().length < 2}>{busy ? 'Conectando…' : 'Entrar na competição'}<Icon size={18}/></button><span className="entry-footnote">Cada participante joga no próprio celular.</span>
           </form>
         </section>
-        {admin && <AdminRooms token={admin.token} onExpired={expireAdmin} Icon={Icon}/>}
+        {admin && <AdminRooms token={admin.token} onExpired={expireAdmin} onEnter={enter} Icon={Icon}/>}
         <section className="intro-bottom"><div className="feature-card"><span className="feature-number">01</span><div><h2>Entre com seu nome</h2><p>{onlineMode ? 'Jogue de onde estiver. O apresentador compartilha o endereço e o código.' : 'Todos na mesma rede Wi-Fi. O apresentador compartilha o endereço e o código.'}</p></div></div><div className="feature-card"><span className="feature-number">02</span><div><h2>Acerte. Seja ágil.</h2><p>45 segundos por pergunta. Nos desafios com código, você tem 60 segundos.</p></div></div><div className="feature-card"><span className="feature-number">03</span><div><h2>Conquiste o pódio</h2><p>Acertos rendem até 1.000 pontos. A rapidez decide o bônus. Top 3 no final!</p></div></div></section>
       </>}
 

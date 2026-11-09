@@ -41,6 +41,13 @@ export class GameManager {
       createdAt: room.createdAt, updatedAt: room.updatedAt,
     }));
   }
+  resumeHost(code) {
+    this.prune();
+    const room = this.room(code);
+    if (room.phase === 'question' && this.now() >= room.deadline) this.reveal(room);
+    room.updatedAt = this.now();
+    return { code: room.code, token: room.hostToken, role: 'host' };
+  }
   remove(code, reason = 'Esta sala foi excluída por um administrador. Peça um novo convite ao apresentador.') {
     const room = this.room(code);
     room.phase = 'closed';

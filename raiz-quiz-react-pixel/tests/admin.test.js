@@ -173,3 +173,83 @@ test('Lista apresenta fases, progresso e finalizadas; remove salas expiradas', (
   assert.equal(list.some(room => room.code === second.code), true);
   manager.dispose();
 });
+
+test('Reentrar como apresentador preserva a rodada, o cronômetro e as respostas', () => {
+  let now = 0;
+  let scheduled = 0;
+  const manager = new GameManager({
+    bank: [{ id: 1, options: ['A', 'B'], correct: 0 }], now: () => now,
+    schedule: callback => { scheduled++; return callback; }, cancel: () => {},
+  });
+  const host = manager.create();
+  const ana = manager.join(host.code, 'Ana');
+  manager.join(host.code, 'Bia');
+  const unsubscribe = manager.subscribe(host.code, host.token, () => {});
+  manager.command(host.code, host.token, 'start');
+  now = 5000;
+  manager.answer(host.code, ana.token, 1, 0);
+  const before = manager.snapshot(host.code, ana.token);
+  const originalTimer = manager.rooms.get(host.code).timer;
+  unsubscribe(); // A guia do apresentador é fechada.
+  now = 10000;
+  const returned = manager.resumeHost(host.code);
+  assert.deepEqual(returned, host);
+  const restored = manager.snapshot(host.code, returned.token);
+  assert.equal(restored.role, 'host');
+  assert.equal(restored.phase, 'question');
+  assert.equal(restored.index, before.index);
+  assert.equal(restored.deadline, before.deadline);
+  assert.equal(restored.answeredCount, 1);
+  assert.equal(manager.snapshot(host.code, ana.token).me.choice, 0);
+  assert.deepEqual(restored.players, before.players);
+  assert.equal(manager.rooms.get(host.code).timer, originalTimer);
+  assert.equal(scheduled, 1);
+  // Se o prazo passou enquanto a guia estava fechada, a reentrada recebe a correção.
+  now = 46000;
+  manager.resumeHost(host.code);
+  assert.equal(manager.snapshot(host.code, returned.token).phase, 'reveal');
+  assert.equal(manager.snapshot(host.code, ana.token).me.correct, 1);
+  assert.ok(manager.snapshot(host.code, ana.token).me.score > 500);
+  manager.command(host.code, returned.token, 'next');
+  assert.equal(manager.snapshot(host.code, manager.resumeHost(host.code).token).phase, 'finished');
+  manager.remove(host.code);
+  assert.throws(() => manager.resumeHost(host.code), error => error.status === 404);
+  manager.dispose();
+});
+
+test('Novo login de admin recupera apresentação sem a credencial da guia antiga', async t => {
+  const manager = new GameManager();
+  const server = createServer(createApi(manager, { adminPassword: password }));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { manager.dispose(); server.closeAllConnections(); server.close(); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const request = async (path, method, token, body) => {
+    const response = await fetch(origin + path, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    return { status: response.status, body: await response.json() };
+  };
+  const { body: firstAdmin } = await request('/api/admin/login', 'POST', undefined, { password });
+  const { body: host } = await request('/api/rooms', 'POST', firstAdmin.token);
+  const { body: player } = await request(`/api/rooms/${host.code}/join`, 'POST', undefined, { name: 'Ana' });
+  const route = `/api/admin/rooms/${host.code}/enter`;
+  for (const unauthorized of [undefined, player.token, host.token, 'falso']) {
+    assert.equal((await request(route, 'POST', unauthorized)).status, 401);
+  }
+  // Outra guia tem somente o novo login de administrador e o código listado.
+  const { body: freshAdmin } = await request('/api/admin/login', 'POST', undefined, { password });
+  const list = await request('/api/admin/rooms', 'GET', freshAdmin.token);
+  assert.equal(list.body.rooms[0].code, host.code);
+  const restored = await request(route, 'POST', freshAdmin.token);
+  assert.equal(restored.status, 200);
+  assert.equal(restored.body.role, 'host');
+  assert.equal(restored.body.code, host.code);
+  const view = await request(`/api/rooms/${host.code}/state`, 'GET', restored.body.token);
+  assert.equal(view.body.phase, 'lobby');
+  assert.equal(view.body.players.length, 1);
+  const start = await request(`/api/rooms/${host.code}/command`, 'POST', restored.body.token, { action: 'start' });
+  assert.equal(start.status, 200);
+  assert.equal(start.body.phase, 'question');
+  await request('/api/admin/logout', 'POST', freshAdmin.token);
+  assert.equal((await request(route, 'POST', freshAdmin.token)).status, 401);
+  await request(`/api/admin/rooms/${host.code}`, 'DELETE', firstAdmin.token);
+  assert.equal((await request(route, 'POST', firstAdmin.token)).status, 404);
+});

@@ -41,6 +41,11 @@ export function createApi(manager = new GameManager(), { allowedOrigins = (proce
         admins.authorize(bearer);
         return json(200, { rooms: manager.list() });
       }
+      const resumeRoom = url.pathname.match(/^\/api\/admin\/rooms\/(\d{6})\/enter$/);
+      if (req.method === 'POST' && resumeRoom) {
+        admins.authorize(bearer);
+        return json(200, manager.resumeHost(resumeRoom[1]));
+      }
       const adminRoom = url.pathname.match(/^\/api\/admin\/rooms\/(\d{6})$/);
       if (req.method === 'DELETE' && adminRoom) {
         admins.authorize(bearer);
