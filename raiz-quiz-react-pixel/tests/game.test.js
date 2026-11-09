@@ -132,7 +132,7 @@ test('Partida completa com 15 perguntas produz pódio com três participantes re
 
 test('HTTP permite criar/entrar/controlar/responder e transmite eventos ao vivo', async t => {
   const manager = new GameManager({ bank });
-  const server = createServer(createApi(manager));
+  const server = createServer(createApi(manager, { adminPassword: 'senha-admin-de-teste' }));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => { manager.dispose(); server.closeAllConnections(); server.close(); });
   const origin = `http://127.0.0.1:${server.address().port}`;
@@ -140,7 +140,8 @@ test('HTTP permite criar/entrar/controlar/responder e transmite eventos ao vivo'
     const res = await fetch(origin + path, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: JSON.stringify(body) });
     return { status: res.status, body: await res.json() };
   };
-  const { body: host } = await post('/api/rooms', {});
+  const { body: admin } = await post('/api/admin/login', { password: 'senha-admin-de-teste' });
+  const { body: host } = await post('/api/rooms', {}, admin.token);
   const { body: player } = await post(`/api/rooms/${host.code}/join`, { name: 'Jogador' });
   const controller = new AbortController();
   const stream = await fetch(`${origin}/api/rooms/${host.code}/events?token=${player.token}`, { signal: controller.signal });
@@ -160,7 +161,7 @@ test('HTTP permite criar/entrar/controlar/responder e transmite eventos ao vivo'
 test('Publicação aceita origem autorizada, preflight, SSE e convite público', async t => {
   const manager = new GameManager({ bank });
   const site = 'https://quiz-dfs.vercel.app';
-  const server = createServer(createApi(manager, { allowedOrigins: [site], publicSiteUrl: site }));
+  const server = createServer(createApi(manager, { allowedOrigins: [site], publicSiteUrl: site, adminPassword: 'senha-admin-de-teste' }));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => { manager.dispose(); server.closeAllConnections(); server.close(); });
   const origin = `http://127.0.0.1:${server.address().port}`;
@@ -173,7 +174,9 @@ test('Publicação aceita origem autorizada, preflight, SSE e convite público',
   const blocked = await fetch(origin + '/api/rooms', { method: 'POST', headers: { Origin: 'https://outro-site.example' } });
   assert.equal(blocked.status, 403);
   assert.equal(blocked.headers.get('access-control-allow-origin'), null);
-  const created = await fetch(origin + '/api/rooms', { method: 'POST', headers: { Origin: site } });
+  const login = await fetch(origin + '/api/admin/login', { method: 'POST', headers: { Origin: site, 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'senha-admin-de-teste' }) });
+  const admin = await login.json();
+  const created = await fetch(origin + '/api/rooms', { method: 'POST', headers: { Origin: site, Authorization: `Bearer ${admin.token}` } });
   assert.equal(created.status, 201);
   const host = await created.json();
   const network = await fetch(origin + '/api/network', { headers: { Origin: site } });

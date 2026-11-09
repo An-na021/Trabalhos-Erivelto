@@ -1,5 +1,6 @@
 import { networkInterfaces } from 'node:os';
 import { GameError, GameManager } from './game.js';
+import { AdminAuth } from './admin.js';
 
 async function readBody(req) {
   let text = '';
@@ -9,7 +10,8 @@ async function readBody(req) {
   }
   try { return JSON.parse(text || '{}'); } catch { throw new GameError('Dados inválidos.'); }
 }
-export function createApi(manager = new GameManager(), { allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean), publicSiteUrl = process.env.PUBLIC_SITE_URL || '' } = {}) {
+export function createApi(manager = new GameManager(), { allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean), publicSiteUrl = process.env.PUBLIC_SITE_URL || '', adminPassword = process.env.ADMIN_PASSWORD || '' } = {}) {
+  const admins = new AdminAuth({ password: adminPassword });
   return async function api(req, res, next = () => { res.writeHead(404); res.end(); }) {
     const url = new URL(req.url, 'http://local');
     if (!url.pathname.startsWith('/api/')) return next();
@@ -27,6 +29,14 @@ export function createApi(manager = new GameManager(), { allowedOrigins = (proce
         res.end(); return;
       }
       if (req.method === 'GET' && url.pathname === '/api/health') return json(200, { ok: true });
+      const bearer = req.headers.authorization?.replace(/^Bearer /, '');
+      if (req.method === 'POST' && url.pathname === '/api/admin/login') {
+        const body = await readBody(req);
+        return json(200, admins.login(body.password, req.socket.remoteAddress || 'unknown'));
+      }
+      if (req.method === 'POST' && url.pathname === '/api/admin/logout') {
+        admins.logout(bearer); return json(200, { ok: true });
+      }
       if (req.method === 'GET' && url.pathname === '/api/network') {
         if (publicSiteUrl) return json(200, { addresses: [new URL(publicSiteUrl).origin] });
         const port = req.socket.localPort;
@@ -34,7 +44,10 @@ export function createApi(manager = new GameManager(), { allowedOrigins = (proce
         const addresses = [...new Set(interfaces.flatMap(([, list]) => list).filter(n => n && n.family === 'IPv4' && !n.internal).map(n => `http://${n.address}:${port}`))];
         return json(200, { addresses });
       }
-      if (req.method === 'POST' && url.pathname === '/api/rooms') return json(201, manager.create());
+      if (req.method === 'POST' && url.pathname === '/api/rooms') {
+        admins.authorize(bearer);
+        return json(201, manager.create());
+      }
       const match = url.pathname.match(/^\/api\/rooms\/(\d{6})\/(join|state|events|command|answer)$/);
       if (!match) throw new GameError('Rota não encontrada.', 404);
       const [, code, action] = match;

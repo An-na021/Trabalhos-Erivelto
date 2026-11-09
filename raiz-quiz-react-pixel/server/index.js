@@ -4,6 +4,8 @@ import { resolve, extname, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApi } from './api.js';
 
+if (existsSync('.env')) process.loadEnvFile('.env');
+
 const root = fileURLToPath(new URL('../dist/', import.meta.url));
 if (!existsSync(resolve(root, 'index.html'))) { console.error('Execute npm run build antes de npm start.'); process.exit(1); }
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };

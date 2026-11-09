@@ -10,6 +10,9 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 
 for (const mode of ['dev', 'preview']) {
   test(`Vite ${mode} cria sala e aceita participante pela API integrada`, async t => {
+    const previousPassword = process.env.ADMIN_PASSWORD;
+    process.env.ADMIN_PASSWORD = 'senha-admin-de-teste';
+    t.after(() => { if (previousPassword === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = previousPassword; });
     const options = { root, logLevel: 'silent', server: { host: '127.0.0.1', port: 0 }, preview: { host: '127.0.0.1', port: 0 } };
     let instance;
     if (mode === 'preview') {
@@ -27,7 +30,11 @@ for (const mode of ['dev', 'preview']) {
       else await new Promise(resolve => instance.httpServer.close(resolve));
     });
     const origin = `http://127.0.0.1:${instance.httpServer.address().port}`;
-    const created = await fetch(origin + '/api/rooms', { method: 'POST' });
+    const denied = await fetch(origin + '/api/rooms', { method: 'POST' });
+    assert.equal(denied.status, 401);
+    const login = await fetch(origin + '/api/admin/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: 'senha-admin-de-teste' }) });
+    const admin = await login.json();
+    const created = await fetch(origin + '/api/rooms', { method: 'POST', headers: { Authorization: `Bearer ${admin.token}` } });
     assert.equal(created.status, 201);
     assert.match(created.headers.get('content-type'), /application\/json/);
     const host = await created.json();

@@ -2,6 +2,8 @@
 
 Quiz multiplayer em React, com servidor Node.js: cada participante entra com seu nome no próprio celular, responde às mesmas perguntas e disputa um lugar no pódio. O apresentador controla a partida pelo computador. Mantém o visual em pixel art e as 15 perguntas baseadas nos 14 slides de `Dominando_o_DFS_(3).pdf`.
 
+A criação de salas é exclusiva para administradores autenticados. Configure `ADMIN_PASSWORD` no servidor (12 a 256 caracteres), clique em **Acesso de administrador** e entre com essa senha para liberar o botão de criação. Participantes usam apenas código e nome. Veja [como configurar o acesso no Render e localmente](ADMIN.md). Sem a senha configurada, criar salas fica bloqueado.
+
 Para jogar pela internet, siga [o passo a passo de publicação na Vercel e no Render](DEPLOY_VERCEL.md). A interface usa `VITE_API_URL` para acessar a API remota; o servidor usa `ALLOWED_ORIGINS` para autorizar o site e `PUBLIC_SITE_URL` para gerar convites públicos. Sem essas variáveis, o modo local continua disponível.
 
 ## Executar a competição
@@ -13,7 +15,7 @@ npm run build
 npm run preview
 ```
 
-Abra o endereço **Local** exibido no terminal. Clique em **Criar sala de competição**. A sala mostra o código de seis dígitos e um endereço da rede para os celulares.
+Antes de iniciar, defina `ADMIN_PASSWORD` em um arquivo `.env` local, ignorado pelo Git. Abra o endereço **Local** exibido no terminal, entre pelo **Acesso de administrador** e clique em **Criar sala de competição**. A sala mostra o código de seis dígitos e um endereço da rede para os celulares.
 
 1. Conecte o computador e os celulares à mesma rede Wi-Fi.
 2. Compartilhe o **endereço para os celulares** exibido dentro da sala. Cada pessoa abre o link, informa o nome e entra. O link preenche o código automaticamente.
@@ -68,6 +70,7 @@ O servidor Node abre em `http://localhost:3000` e aceita conexões na rede. A va
 - `src/pixel-theme.css`: tema pixel art compartilhado.
 - `server/game.js`: salas, participantes, fases, prazos e pontuação.
 - `server/api.js`: API HTTP e atualizações por Server-Sent Events (SSE).
+- `server/admin.js`: autenticação administrativa, expiração de sessões e limite de tentativas.
 - `server/index.js`: servidor de produção que serve a API e `dist/`.
 - `vite.config.js`: integração da mesma API nos modos dev e preview.
 - `tests/game.test.js`: regras e integração multiplayer.

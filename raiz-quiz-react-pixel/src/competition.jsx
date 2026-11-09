@@ -34,6 +34,10 @@ export default function Competition({ Tree, Icon }) {
   const [connected, setConnected] = useState(false);
   const [fatal, setFatal] = useState(false);
   const [help, setHelp] = useState(false);
+  const [admin, setAdmin] = useState(null);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminError, setAdminError] = useState('');
   const [copied, setCopied] = useState(false);
   const [addresses, setAddresses] = useState([]);
   const [inviteOrigin, setInviteOrigin] = useState(location.origin);
@@ -41,6 +45,7 @@ export default function Competition({ Tree, Icon }) {
   const receivedAt = useRef(performance.now());
   const headingRef = useRef(null);
   const dialogRef = useRef(null);
+  const adminDialogRef = useRef(null);
   const appliedVersion = useRef(0);
   const isHost = session?.role === 'host';
 
@@ -81,6 +86,33 @@ export default function Competition({ Tree, Icon }) {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [game?.phase, game?.index]);
   useEffect(() => { if (help) dialogRef.current?.showModal(); else dialogRef.current?.close(); }, [help]);
+  useEffect(() => {
+    if (adminOpen) adminDialogRef.current?.showModal();
+    else { adminDialogRef.current?.close(); setAdminPassword(''); }
+  }, [adminOpen]);
+
+  async function loginAdmin(event) {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true); setAdminError('');
+    try {
+      setAdmin(await api('/api/admin/login', { password: adminPassword }));
+      setAdminOpen(false); setError('');
+    } catch (err) { setAdminError(err.message); }
+    finally { setAdminPassword(''); setBusy(false); }
+  }
+  function createRoom() {
+    perform(async () => {
+      try { enter(await api('/api/rooms', {}, admin?.token)); }
+      catch (err) {
+        if (err.status === 401) { setAdmin(null); setAdminError(err.message); setAdminOpen(true); }
+        else throw err;
+      }
+    });
+  }
+  function logoutAdmin() {
+    perform(async () => { await api('/api/admin/logout', {}, admin?.token); setAdmin(null); });
+  }
 
   async function perform(task) {
     if (busy) return;
@@ -121,7 +153,7 @@ export default function Competition({ Tree, Icon }) {
           <div className="arena-copy"><div className="eyebrow"><span className="tiny-line"/> DESAFIO MULTIPLAYER</div><h1>Vá mais fundo.<br/><em>Chegue ao topo.</em></h1>
             <p>Seu nome na disputa. Seu raciocínio no comando. Responda sobre DFS em tempo real e conquiste um lugar no pódio.</p>
             <div className="quiz-facts"><span>15 perguntas</span><span>45–60 segundos</span><span>Ao vivo</span></div>
-            <div className="host-entry"><button className="secondary-button" disabled={busy} onClick={() => perform(async () => enter(await api('/api/rooms', {})))}>Criar sala de competição <Icon size={17}/></button><p>Vai apresentar? Crie a sala e convide a turma.</p></div>
+            <div className="host-entry">{admin ? <><span className="admin-status"><Icon name="check" size={16}/> Administrador conectado</span><button className="secondary-button" disabled={busy} onClick={createRoom}>Criar sala de competição <Icon size={17}/></button><button className="text-button admin-logout" disabled={busy} onClick={logoutAdmin}>Sair do acesso de administrador</button><p>Crie a sala e compartilhe o convite com a turma.</p></> : <><button className="text-button admin-access" disabled={busy} onClick={() => { setAdminError(''); setAdminOpen(true); }}><Icon name="branch" size={16}/> Acesso de administrador</button><p>Participantes entram com o código ao lado. A criação de salas é exclusiva para administradores.</p></>}</div>
           </div>
           <form className="entry-card" onSubmit={e => { e.preventDefault(); perform(async () => enter(await api(`/api/rooms/${code}/join`, { name }))); }}>
             <span className="eyebrow">PRONTO PARA A DISPUTA?</span><h2>Entre na sala.</h2><p>Use o código compartilhado pelo apresentador.</p>
@@ -183,6 +215,7 @@ export default function Competition({ Tree, Icon }) {
       </section>}
     </main>
     <footer className="site-footer"><span>Busca em profundidade <span className="footer-divider">/</span> Competição ao vivo</span><span>Primeiro, vá mais fundo.</span></footer>
+    <dialog ref={adminDialogRef} onCancel={() => setAdminOpen(false)} onClick={e => { if (e.target === adminDialogRef.current) setAdminOpen(false); }}><form className="dialog-content admin-form" onSubmit={loginAdmin}><button type="button" className="dialog-close text-button" aria-label="Fechar acesso de administrador" onClick={() => setAdminOpen(false)}><Icon name="close"/></button><div className="eyebrow">ACESSO RESTRITO</div><h2>Área do administrador</h2><p>Entre com a senha de administrador para criar e apresentar uma competição.</p><label htmlFor="admin-password">Senha de administrador</label><input id="admin-password" type="password" autoComplete="current-password" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} required maxLength={256} autoFocus/>{adminError && <div className="admin-error" role="alert">{adminError}</div>}<button className="primary-button" disabled={busy || !adminPassword}>{busy ? 'Verificando…' : 'Entrar como administrador'}<Icon name="check" size={18}/></button><p className="admin-note">É participante? Feche esta janela e entre com o código da sala.</p></form></dialog>
     <dialog ref={dialogRef} onCancel={() => setHelp(false)} onClick={e => { if (e.target === dialogRef.current) setHelp(false); }}><div className="dialog-content"><button className="dialog-close text-button" aria-label="Fechar" onClick={() => setHelp(false)}><Icon name="close"/></button><div className="eyebrow">DA SALA AO PÓDIO</div><h2>Como jogar</h2><ol className="help-steps"><li>{onlineMode ? 'O apresentador cria uma sala e compartilha o endereço. Todos jogam pela internet.' : 'O apresentador cria uma sala e compartilha o endereço. Todos usam a mesma rede Wi-Fi.'}</li><li>Cada pessoa entra no próprio celular com o código e um nome diferente.</li><li>São 15 perguntas: 45 segundos nas comuns e 60 segundos nas que têm código.</li><li>Toque para enviar uma única resposta. Cada acerto vale de 500 a 1.000 pontos, conforme a rapidez.</li><li>A correção aparece quando todos respondem ou o tempo acaba. O apresentador avança e revela o pódio ao final.</li></ol><p>Se a conexão cair, a página tenta reconectar. Atualizar a tela mantém sua entrada nesta aba, mas não pausa o relógio.</p><button className="primary-button" onClick={() => setHelp(false)}>Vamos jogar <Icon name="check" size={18}/></button></div></dialog>
   </div>;
 }
