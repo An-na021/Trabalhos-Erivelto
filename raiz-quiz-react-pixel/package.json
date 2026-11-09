@@ -1,0 +1,10 @@
+{
+  "name": "raiz-dfs-quiz",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=22.12.0 <23"},
+  "scripts": {"dev": "vite --host 0.0.0.0", "build": "vite build", "preview": "vite preview --host 0.0.0.0", "start": "node server/index.js", "test": "node --test tests/*.test.js"},
+  "dependencies": {"react": "latest", "react-dom": "latest"},
+  "devDependencies": {"vite": "latest"}
+}
