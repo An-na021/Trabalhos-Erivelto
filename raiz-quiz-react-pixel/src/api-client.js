@@ -6,11 +6,11 @@ export function apiUrl(path, base = import.meta.env?.VITE_API_URL || '') {
   return base.trim().replace(/\/+$/, '') + path;
 }
 
-export async function requestApi(path, body, credential, fetcher = fetch) {
+export async function requestApi(path, body, credential, fetcher = fetch, method = body === undefined ? 'GET' : 'POST') {
   let response;
   try {
     response = await fetcher(apiUrl(path), {
-      method: body === undefined ? 'GET' : 'POST',
+      method,
       headers: { ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(credential ? { Authorization: `Bearer ${credential}` } : {}) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
@@ -34,4 +34,8 @@ export async function requestApi(path, body, credential, fetcher = fetch) {
     throw error;
   }
   return result;
+}
+
+export function deleteApi(path, credential) {
+  return requestApi(path, undefined, credential, fetch, 'DELETE');
 }

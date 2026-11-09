@@ -16,6 +16,34 @@
 .admin-form .primary-button { width: 100%; margin-top: 24px; gap: 12px; font-size: 16px; }
 .admin-form .admin-note { margin: 20px 0 0; font-size: 11px; }
 .admin-error { padding: 12px; margin-top: 18px; background: #362227; border: 1px solid #a95c58; color: #ffd0bc; font-size: 12px; line-height: 1.8; }
+.admin-rooms-link { display: inline-block; margin-top: 14px; font-size: 13px; }
+.admin-rooms { margin: 0 0 35px; padding: 28px; background: #10182bef; border: 1px solid #465b7d; box-shadow: inset 0 3px #263c5c, 4px 4px #030611; scroll-margin-top: 24px; }
+.admin-rooms-heading { display: flex; align-items: center; justify-content: space-between; gap: 22px; }
+.admin-rooms-heading h2 { font: 400 36px var(--pixel); margin: 12px 0 8px; }
+.admin-rooms-heading p { font-size: 12px; color: #9fb3d2; line-height: 1.7; }
+.admin-rooms-heading .secondary-button { font-size: 16px; flex-shrink: 0; }
+.admin-rooms-toolbar { display: flex; align-items: center; gap: 12px; border-block: 1px solid #2b3b55; margin: 24px 0; padding: 17px 0; }
+.admin-rooms-toolbar label { font-size: 12px; color: #bdcce3; }
+.admin-rooms-toolbar select { padding: 10px; border: 1px solid #45597c; background: #080e1e; color: var(--ink); font: inherit; font-size: 13px; max-width: 100%; }
+.admin-rooms-toolbar > span { margin-left: auto; font-size: 11px; color: #93a8c8; }
+.admin-rooms-toolbar select:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.admin-rooms-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.admin-room-card { padding: 20px; background: #111e32; border: 1px solid #3b4c69; min-width: 0; }
+.admin-room-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.admin-room-top h3 { font: 28px var(--pixel); margin: 0; color: var(--amber); }
+.admin-room-top h3 > span { font-size: 12px; color: #a9bfdf; }
+.room-phase { border: 1px solid #567497; background: #213954; padding: 5px 8px; color: #c1e1ff; font-size: 10px; }
+.phase-question, .phase-reveal { background: #443421; border-color: #a47c40; color: #ffce8c; }
+.phase-finished { background: #273c34; border-color: #5a876e; color: #b9dfc1; }
+.admin-room-card dl { margin: 20px 0; }
+.admin-room-card dl > div { display: flex; justify-content: space-between; gap: 15px; padding: 8px 0; font-size: 12px; line-height: 1.7; }
+.admin-room-card dt { color: #9db3d3; }
+.admin-room-card dd { margin: 0; color: #e0e8f6; text-align: right; }
+.danger-button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 12px 16px; background: #48272e; border: 1px solid #c1777c; box-shadow: inset 0 2px #81404d; color: #ffd0cf; font: 17px var(--pixel); }
+.danger-button:hover:not(:disabled) { background: #66303b; border-color: #f6a1a3; }
+.admin-room-card .danger-button { width: 100%; }
+.admin-rooms-empty { padding: 30px 12px; font-size: 13px; color: #adbed9; text-align: center; line-height: 1.8; }
+.admin-rooms-success { padding: 12px 16px; color: #b9e2b2; background: #1d352d; border: 1px solid #547e61; font-size: 13px; margin-bottom: 18px; }
 .secondary-button { display: inline-flex; align-items: center; justify-content: center; gap: 16px; background: #18263f; border: 1px solid #6f91ba; box-shadow: inset 0 2px #2e4260, 3px 3px #040713; padding: 14px 20px; color: #d4e6ff; font: 500 18px var(--pixel); }
 .secondary-button:hover:not(:disabled) { background: #263b5a; border-color: var(--blue); }
 .entry-card { background: #10182bef; border: 1px solid #4e5f7c; box-shadow: inset 0 4px #27334e, 7px 7px #030611; padding: 32px; }
@@ -154,6 +182,12 @@ button.live-option:disabled { opacity: 1; cursor: default; }
   .lobby-layout { gap: 35px; }
 }
 @media (max-width: 760px) {
+  .admin-rooms { padding: 20px 15px; }
+  .admin-rooms-heading { align-items: start; flex-direction: column; gap: 18px; }
+  .admin-rooms-heading h2 { font-size: 31px; }
+  .admin-rooms-toolbar { flex-wrap: wrap; }
+  .admin-rooms-toolbar > span { margin-left: 0; width: 100%; line-height: 1.7; }
+  .admin-rooms-grid { grid-template-columns: minmax(0, 1fr); }
   .competition.app-shell { padding-inline: 16px; }
   .arena-hero { grid-template-columns: 1fr; gap: 35px; padding: 36px 0; }
   .arena-art { inset-inline: -16px; }

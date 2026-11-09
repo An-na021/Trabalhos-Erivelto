@@ -80,3 +80,96 @@ test('Servidor sem ADMIN_PASSWORD não libera criação anônima', async t => {
   assert.equal(response.status, 503);
   assert.equal(manager.rooms.size, 0);
 });
+
+test('Somente admin lista e exclui salas; participantes conectados são avisados', async t => {
+  const manager = new GameManager();
+  const server = createServer(createApi(manager, { adminPassword: password, allowedOrigins: ['https://quiz.example'] }));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => { manager.dispose(); server.closeAllConnections(); server.close(); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const request = async (path, method = 'GET', token, body) => {
+    const response = await fetch(origin + path, { method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { 'Content-Type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+    return { status: response.status, body: await response.json() };
+  };
+  const { body: admin } = await request('/api/admin/login', 'POST', undefined, { password });
+  const { body: host } = await request('/api/rooms', 'POST', admin.token);
+  const { body: player } = await request(`/api/rooms/${host.code}/join`, 'POST', undefined, { name: 'Participante' });
+  for (const invalidToken of [undefined, player.token, host.token]) {
+    assert.equal((await request('/api/admin/rooms', 'GET', invalidToken)).status, 401);
+    assert.equal((await request(`/api/admin/rooms/${host.code}`, 'DELETE', invalidToken)).status, 401);
+  }
+  assert.equal(manager.rooms.size, 1);
+  const list = await request('/api/admin/rooms', 'GET', admin.token);
+  assert.equal(list.status, 200);
+  assert.equal(list.body.rooms[0].code, host.code);
+  assert.equal(list.body.rooms[0].playerCount, 1);
+  assert.equal(list.body.rooms[0].phase, 'lobby');
+  assert.equal(JSON.stringify(list.body).includes(host.token), false);
+  assert.equal(JSON.stringify(list.body).includes(player.token), false);
+  const preflight = await fetch(`${origin}/api/admin/rooms/${host.code}`, { method: 'OPTIONS', headers: { Origin: 'https://quiz.example', 'Access-Control-Request-Method': 'DELETE' } });
+  assert.match(preflight.headers.get('access-control-allow-methods'), /DELETE/);
+  const stream = await fetch(`${origin}/api/rooms/${host.code}/events?token=${player.token}`);
+  const reader = stream.body.getReader();
+  await reader.read();
+  assert.equal((await request(`/api/admin/rooms/${host.code}`, 'DELETE', admin.token)).status, 200);
+  let output = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    output += new TextDecoder().decode(value);
+  }
+  assert.match(output, /event: room-closed/);
+  assert.match(output, /excluída por um administrador/);
+  assert.equal(manager.listeners.has(host.code), false);
+  assert.equal((await request(`/api/rooms/${host.code}/state`, 'GET', host.token)).status, 404);
+  assert.equal((await request(`/api/rooms/${host.code}/join`, 'POST', undefined, { name: 'Outro' })).status, 404);
+  assert.equal((await request(`/api/admin/rooms/${host.code}`, 'DELETE', admin.token)).status, 404);
+  assert.deepEqual((await request('/api/admin/rooms', 'GET', admin.token)).body.rooms, []);
+  await request('/api/admin/logout', 'POST', admin.token);
+  assert.equal((await request('/api/admin/rooms', 'GET', admin.token)).status, 401);
+});
+
+test('Excluir sala em andamento cancela o cronômetro e não interfere em outra sala', () => {
+  let timeout;
+  const canceled = [];
+  const manager = new GameManager({ schedule: callback => { timeout = callback; return callback; }, cancel: timer => canceled.push(timer) });
+  const host = manager.create();
+  const other = manager.create();
+  manager.join(host.code, 'Ana');
+  manager.command(host.code, host.token, 'start');
+  let closed = '';
+  manager.subscribe(host.code, host.token, () => {}, message => { closed = message; });
+  const currentTimeout = timeout;
+  manager.remove(host.code);
+  assert.ok(canceled.includes(currentTimeout));
+  assert.match(closed, /excluída/);
+  // Um callback já enfileirado não pode ressuscitar nem publicar a sala removida.
+  assert.doesNotThrow(() => currentTimeout());
+  assert.equal(manager.rooms.has(host.code), false);
+  assert.equal(manager.snapshot(other.code, other.token).phase, 'lobby');
+  manager.dispose();
+});
+
+test('Lista apresenta fases, progresso e finalizadas; remove salas expiradas', () => {
+  let now = 0;
+  const bank = [{ id: 1, options: ['A', 'B'], correct: 0 }];
+  const manager = new GameManager({ bank, now: () => now, schedule: () => null, cancel: () => {} });
+  const first = manager.create();
+  now = 1000;
+  const second = manager.create();
+  const player = manager.join(second.code, 'Bia');
+  manager.command(second.code, second.token, 'start');
+  let list = manager.list();
+  assert.equal(list[0].code, second.code);
+  assert.equal(list[0].phase, 'question');
+  assert.equal(list[0].questionNumber, 1);
+  manager.answer(second.code, player.token, 1, 0);
+  assert.equal(manager.list()[0].phase, 'reveal');
+  manager.command(second.code, second.token, 'next');
+  assert.equal(manager.list()[0].phase, 'finished');
+  now = 12 * 60 * 60 * 1000 + 1;
+  list = manager.list();
+  assert.equal(list.some(room => room.code === first.code), false);
+  assert.equal(list.some(room => room.code === second.code), true);
+  manager.dispose();
+});

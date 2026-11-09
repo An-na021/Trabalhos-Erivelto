@@ -25,7 +25,7 @@ export function createApi(manager = new GameManager(), { allowedOrigins = (proce
         res.setHeader('Vary', 'Origin');
       }
       if (req.method === 'OPTIONS') {
-        res.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600' });
+        res.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization', 'Access-Control-Max-Age': '600' });
         res.end(); return;
       }
       if (req.method === 'GET' && url.pathname === '/api/health') return json(200, { ok: true });
@@ -36,6 +36,16 @@ export function createApi(manager = new GameManager(), { allowedOrigins = (proce
       }
       if (req.method === 'POST' && url.pathname === '/api/admin/logout') {
         admins.logout(bearer); return json(200, { ok: true });
+      }
+      if (req.method === 'GET' && url.pathname === '/api/admin/rooms') {
+        admins.authorize(bearer);
+        return json(200, { rooms: manager.list() });
+      }
+      const adminRoom = url.pathname.match(/^\/api\/admin\/rooms\/(\d{6})$/);
+      if (req.method === 'DELETE' && adminRoom) {
+        admins.authorize(bearer);
+        manager.remove(adminRoom[1]);
+        return json(200, { ok: true, code: adminRoom[1] });
       }
       if (req.method === 'GET' && url.pathname === '/api/network') {
         if (publicSiteUrl) return json(200, { addresses: [new URL(publicSiteUrl).origin] });
@@ -57,7 +67,9 @@ export function createApi(manager = new GameManager(), { allowedOrigins = (proce
         manager.snapshot(code, credential);
         res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' });
         res.flushHeaders?.();
-        const unsubscribe = manager.subscribe(code, credential, state => res.write(`data: ${JSON.stringify(state)}\n\n`));
+        const unsubscribe = manager.subscribe(code, credential,
+          state => res.write(`data: ${JSON.stringify(state)}\n\n`),
+          message => { res.write(`event: room-closed\ndata: ${JSON.stringify({ message })}\n\n`); res.end(); });
         const heartbeat = setInterval(() => res.write(': heartbeat\n\n'), 15000);
         heartbeat.unref?.(); res.on('close', () => { unsubscribe(); clearInterval(heartbeat); });
         return;

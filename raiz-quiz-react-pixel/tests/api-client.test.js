@@ -33,3 +33,14 @@ test('Cliente preserva criação de sala, credenciais e mensagens válidas da AP
 test('Falha de rede mostra como restabelecer a conexão', async () => {
   await assert.rejects(requestApi('/api/rooms', {}, undefined, async () => { throw new TypeError('Failed to fetch'); }), /terminal da competição/);
 });
+
+test('Cliente envia exclusão com método DELETE e credencial administrativa', async () => {
+  const result = await requestApi('/api/admin/rooms/123456', undefined, 'admin-token', async (path, options) => {
+    assert.equal(path, '/api/admin/rooms/123456');
+    assert.equal(options.method, 'DELETE');
+    assert.equal(options.headers.Authorization, 'Bearer admin-token');
+    assert.equal(options.body, undefined);
+    return Response.json({ ok: true });
+  }, 'DELETE');
+  assert.equal(result.ok, true);
+});

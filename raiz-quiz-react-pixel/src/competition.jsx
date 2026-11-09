@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { requestApi as api, apiUrl, onlineMode } from './api-client.js';
+import AdminRooms from './admin-rooms.jsx';
 import './competition.css';
 
 const SESSION_KEY = 'dfs-live-session-v1';
@@ -59,14 +60,20 @@ export default function Competition({ Tree, Icon }) {
     if (!session) return;
     try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch { /* Session remains usable in this tab. */ }
     let active = true;
-    const refresh = () => api(`/api/rooms/${session.code}/state`, undefined, session.token).then(state => { if (active) apply(state); }).catch(err => {
-      if (!active) return;
-      if ([401, 404].includes(err.status)) { setFatal(true); setError(err.message); stream.close(); }
+    let closed = false;
+    function roomClosed(message) {
+      closed = true; stream.close(); clearInterval(polling);
+      setConnected(false); setFatal(true); setGame(null); setError(message);
+    }
+    const refresh = () => api(`/api/rooms/${session.code}/state`, undefined, session.token).then(state => { if (active && !closed) apply(state); }).catch(err => {
+      if (!active || closed) return;
+      if ([401, 404].includes(err.status)) roomClosed(err.message);
     });
     const stream = new EventSource(apiUrl(`/api/rooms/${session.code}/events?token=${encodeURIComponent(session.token)}`));
-    stream.onopen = () => { if (active) { setConnected(true); setFatal(false); } };
-    stream.onmessage = event => { if (active) { apply(JSON.parse(event.data)); setConnected(true); } };
-    stream.onerror = () => { if (active) { setConnected(false); refresh(); } };
+    stream.onopen = () => { if (active && !closed) { setConnected(true); setFatal(false); } };
+    stream.onmessage = event => { if (active && !closed) { apply(JSON.parse(event.data)); setConnected(true); } };
+    stream.onerror = () => { if (active && !closed) { setConnected(false); refresh(); } };
+    stream.addEventListener('room-closed', event => { if (active && !closed) roomClosed(JSON.parse(event.data).message); });
     refresh();
     const polling = setInterval(refresh, 5000);
     return () => { active = false; stream.close(); clearInterval(polling); };
@@ -113,6 +120,9 @@ export default function Competition({ Tree, Icon }) {
   function logoutAdmin() {
     perform(async () => { await api('/api/admin/logout', {}, admin?.token); setAdmin(null); });
   }
+  function expireAdmin(message) {
+    setAdmin(null); setAdminError(message); setAdminOpen(true);
+  }
 
   async function perform(task) {
     if (busy) return;
@@ -146,14 +156,14 @@ export default function Competition({ Tree, Icon }) {
       <button className="text-button how-button" onClick={() => setHelp(true)}><Icon name="book" size={17}/><span>Como jogar</span></button>
     </header>
     <main>
-      {error && <div className="game-error" role="alert">{error}{session && fatal && <button className="text-button" onClick={leave}>Voltar e entrar novamente</button>}</div>}
+      {error && <div className="game-error" role="alert">{error}{session && fatal && <button className="text-button" onClick={leave}>Voltar ao início</button>}</div>}
       {!session && <>
         <section className="arena-hero">
           <div className="arena-art" aria-hidden="true"/>
           <div className="arena-copy"><div className="eyebrow"><span className="tiny-line"/> DESAFIO MULTIPLAYER</div><h1>Vá mais fundo.<br/><em>Chegue ao topo.</em></h1>
             <p>Seu nome na disputa. Seu raciocínio no comando. Responda sobre DFS em tempo real e conquiste um lugar no pódio.</p>
             <div className="quiz-facts"><span>15 perguntas</span><span>45–60 segundos</span><span>Ao vivo</span></div>
-            <div className="host-entry">{admin ? <><span className="admin-status"><Icon name="check" size={16}/> Administrador conectado</span><button className="secondary-button" disabled={busy} onClick={createRoom}>Criar sala de competição <Icon size={17}/></button><button className="text-button admin-logout" disabled={busy} onClick={logoutAdmin}>Sair do acesso de administrador</button><p>Crie a sala e compartilhe o convite com a turma.</p></> : <><button className="text-button admin-access" disabled={busy} onClick={() => { setAdminError(''); setAdminOpen(true); }}><Icon name="branch" size={16}/> Acesso de administrador</button><p>Participantes entram com o código ao lado. A criação de salas é exclusiva para administradores.</p></>}</div>
+            <div className="host-entry">{admin ? <><span className="admin-status"><Icon name="check" size={16}/> Administrador conectado</span><button className="secondary-button" disabled={busy} onClick={createRoom}>Criar sala de competição <Icon size={17}/></button><button className="text-button admin-logout" disabled={busy} onClick={logoutAdmin}>Sair do acesso de administrador</button><p>Crie a sala e compartilhe o convite com a turma.</p><a className="admin-rooms-link" href="#admin-rooms">Ver e gerenciar salas</a></> : <><button className="text-button admin-access" disabled={busy} onClick={() => { setAdminError(''); setAdminOpen(true); }}><Icon name="branch" size={16}/> Acesso de administrador</button><p>Participantes entram com o código ao lado. A criação de salas é exclusiva para administradores.</p></>}</div>
           </div>
           <form className="entry-card" onSubmit={e => { e.preventDefault(); perform(async () => enter(await api(`/api/rooms/${code}/join`, { name }))); }}>
             <span className="eyebrow">PRONTO PARA A DISPUTA?</span><h2>Entre na sala.</h2><p>Use o código compartilhado pelo apresentador.</p>
@@ -162,6 +172,7 @@ export default function Competition({ Tree, Icon }) {
             <button className="primary-button" disabled={busy || code.length !== 6 || name.trim().length < 2}>{busy ? 'Conectando…' : 'Entrar na competição'}<Icon size={18}/></button><span className="entry-footnote">Cada participante joga no próprio celular.</span>
           </form>
         </section>
+        {admin && <AdminRooms token={admin.token} onExpired={expireAdmin} Icon={Icon}/>}
         <section className="intro-bottom"><div className="feature-card"><span className="feature-number">01</span><div><h2>Entre com seu nome</h2><p>{onlineMode ? 'Jogue de onde estiver. O apresentador compartilha o endereço e o código.' : 'Todos na mesma rede Wi-Fi. O apresentador compartilha o endereço e o código.'}</p></div></div><div className="feature-card"><span className="feature-number">02</span><div><h2>Acerte. Seja ágil.</h2><p>45 segundos por pergunta. Nos desafios com código, você tem 60 segundos.</p></div></div><div className="feature-card"><span className="feature-number">03</span><div><h2>Conquiste o pódio</h2><p>Acertos rendem até 1.000 pontos. A rapidez decide o bônus. Top 3 no final!</p></div></div></section>
       </>}
 

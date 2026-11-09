@@ -34,7 +34,7 @@ export class AdminAuth {
   }
   authorize(token) {
     this.configured(); this.prune();
-    if (!this.sessions.has(token)) throw new GameError('Entre como administrador para criar uma sala. Sua sessão pode ter expirado.', 401);
+    if (!this.sessions.has(token)) throw new GameError('Entre como administrador para gerenciar salas. Sua sessão pode ter expirado.', 401);
   }
   logout(token) { this.sessions.delete(token); }
 }

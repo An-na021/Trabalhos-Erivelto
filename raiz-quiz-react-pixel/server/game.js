@@ -29,9 +29,26 @@ export class GameManager {
   prune() {
     for (const [code, room] of this.rooms) {
       if (this.now() - room.updatedAt > 12 * 60 * 60 * 1000) {
-        this.cancel(room.timer); this.rooms.delete(code); this.listeners.delete(code);
+        this.remove(code, 'A sala foi encerrada por inatividade.');
       }
     }
+  }
+  list() {
+    this.prune();
+    return [...this.rooms.values()].sort((a, b) => b.createdAt - a.createdAt).map(room => ({
+      code: room.code, phase: room.phase, playerCount: room.players.length,
+      questionNumber: room.index + 1, total: this.bank.length,
+      createdAt: room.createdAt, updatedAt: room.updatedAt,
+    }));
+  }
+  remove(code, reason = 'Esta sala foi excluída por um administrador. Peça um novo convite ao apresentador.') {
+    const room = this.room(code);
+    room.phase = 'closed';
+    this.cancel(room.timer); room.timer = null;
+    this.rooms.delete(code);
+    const subscribers = this.listeners.get(code);
+    this.listeners.delete(code);
+    for (const item of subscribers || []) item.onClose?.(reason);
   }
   room(code) {
     const room = this.rooms.get(code);
@@ -55,12 +72,12 @@ export class GameManager {
     room.players.push(player); this.publish(room);
     return { code, token: player.token, role: 'player' };
   }
-  subscribe(code, credential, listener) {
+  subscribe(code, credential, listener, onClose) {
     const room = this.room(code); this.identity(room, credential);
     const set = this.listeners.get(code) || new Set();
-    const item = { credential, listener }; set.add(item); this.listeners.set(code, set);
+    const item = { credential, listener, onClose }; set.add(item); this.listeners.set(code, set);
     listener(this.snapshot(code, credential));
-    return () => { set.delete(item); if (!set.size) this.listeners.delete(code); };
+    return () => { set.delete(item); if (!set.size && this.listeners.get(code) === set) this.listeners.delete(code); };
   }
   publish(room) {
     room.revision++;
